@@ -444,7 +444,7 @@
     <div class="page" id="waitingPage">
         <div class="card">
             <div class="checkmark-circle">✅</div>
-            <h1 class="card-title">我就知道你会<br>愿意和我约会！</h1>
+            <h1 class="card-title">我就知道你会<br>愿意和我约会！亲亲</h1>
             <div class="waiting-heart">💖</div>
             <p class="waiting-message">
                 请老婆乖乖等好，<br>
@@ -582,9 +582,29 @@
         });
 
         activityBtn.addEventListener('click', () => {
-            nextPage();
-            showSummary();
-            startCountdown();
+            const data = {
+                date: dateInput.value,
+                time: timeInput.value,
+                food: foodBtn.dataset.selected,
+                activity: activityBtn.dataset.selected
+            };
+            
+            fetch('/api/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            }).then(res => res.json()).then(() => {
+                nextPage();
+                showSummary();
+                startCountdown();
+            }).catch(err => {
+                console.error('保存失败:', err);
+                nextPage();
+                showSummary();
+                startCountdown();
+            });
         });
 
         function showSummary() {
