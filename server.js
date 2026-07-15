@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 let results = [];
+let missResults = [];
 
 const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -46,9 +47,46 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    if (req.url === '/api/save-miss' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                const result = {
+                    id: Date.now(),
+                    ...data,
+                    createdAt: new Date().toLocaleString('zh-CN')
+                };
+                missResults.push(result);
+                fs.writeFileSync('./miss_results.json', JSON.stringify(missResults, null, 2));
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, message: '保存成功！' }));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: '保存失败' }));
+            }
+        });
+        return;
+    }
+
+    if (req.url === '/api/miss-results' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(missResults));
+        return;
+    }
+
     if (req.url === '/admin') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(fs.readFileSync('./admin.html'), 'utf-8');
+        return;
+    }
+
+    if (req.url === '/miss-admin') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(fs.readFileSync('./miss-admin.html'), 'utf-8');
         return;
     }
 
