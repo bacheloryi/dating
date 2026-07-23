@@ -194,12 +194,7 @@ function sampleAndMap() {
   const tmp = document.createElement('canvas');
   tmp.width = w;
   tmp.height = h;
-  let tctx;
-  try {
-    tctx = tmp.getContext('2d', { willReadFrequently: true, colorSpace: 'srgb' });
-  } catch {
-    tctx = tmp.getContext('2d');
-  }
+  const tctx = tmp.getContext('2d');
   tctx.drawImage(img, x, y, cw, ch, 0, 0, w, h);
   const data = tctx.getImageData(0, 0, w, h).data;
 
@@ -257,43 +252,6 @@ function countColors(mapped) {
     .sort((a, b) => b.count - a.count);
 }
 
-function hexLuminance(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-}
-
-function drawCodeLabel(ctx, code, hex, cx, cy, bs) {
-  const fontSize = Math.max(8, Math.round(bs * 0.4));
-  ctx.font = `700 ${fontSize}px "Segoe UI", "Microsoft YaHei", sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const light = hexLuminance(hex) > 0.55;
-  ctx.lineWidth = Math.max(1.5, bs * 0.08);
-  ctx.strokeStyle = light ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.7)';
-  ctx.fillStyle = light ? '#111' : '#fff';
-  ctx.lineJoin = 'round';
-  ctx.miterLimit = 2;
-  ctx.strokeText(code, cx, cy);
-  ctx.fillText(code, cx, cy);
-}
-
-function getDrawContext(canvas) {
-  try {
-    return canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
-  } catch {
-    return canvas.getContext('2d');
-  }
-}
-
-function drawBead(ctx, hex, x, y, bs) {
-  // 整格填色，避免手机缩小后圆豆间隙发灰发白
-  ctx.fillStyle = hex;
-  ctx.fillRect(x, y, bs, bs);
-}
-
 function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
   const { grid, w, h } = state.mapped;
   const bs = state.beadSize;
@@ -309,14 +267,17 @@ function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
     const oy = by * BOARD_SIZE;
     canvas.width = BOARD_SIZE * bs;
     canvas.height = BOARD_SIZE * bs;
-    const ctx = getDrawContext(canvas);
-    ctx.fillStyle = '#ffffff';
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
         const c = grid[(oy + y) * w + (ox + x)];
-        drawBead(ctx, c.hex, x * bs, y * bs, bs);
+        ctx.fillStyle = c.hex;
+        ctx.beginPath();
+        ctx.arc(x * bs + bs / 2, y * bs + bs / 2, bs * 0.42, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -335,11 +296,15 @@ function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
       }
     }
 
-    if (state.showCodes && bs >= 8) {
+    if (state.showCodes && bs >= 10) {
+      ctx.fillStyle = '#222';
+      ctx.font = `${Math.max(7, bs * 0.35)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       for (let y = 0; y < BOARD_SIZE; y++) {
         for (let x = 0; x < BOARD_SIZE; x++) {
           const c = grid[(oy + y) * w + (ox + x)];
-          drawCodeLabel(ctx, c.code, c.hex, x * bs + bs / 2, y * bs + bs / 2, bs);
+          ctx.fillText(c.code, x * bs + bs / 2, y * bs + bs / 2);
         }
       }
     }
@@ -348,14 +313,19 @@ function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
 
   canvas.width = w * bs;
   canvas.height = h * bs;
-  const ctx = getDrawContext(canvas);
-  ctx.fillStyle = '#ffffff';
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f0f0f0';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const c = grid[y * w + x];
-      drawBead(ctx, c.hex, x * bs, y * bs, bs);
+      const px = x * bs;
+      const py = y * bs;
+      ctx.fillStyle = c.hex;
+      ctx.beginPath();
+      ctx.arc(px + bs / 2, py + bs / 2, bs * 0.42, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -392,11 +362,15 @@ function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
     }
   }
 
-  if (state.showCodes && bs >= 8) {
+  if (state.showCodes && bs >= 10) {
+    ctx.fillStyle = '#222';
+    ctx.font = `${Math.max(7, bs * 0.35)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        const c = grid[y * w + x];
-        drawCodeLabel(ctx, c.code, c.hex, x * bs + bs / 2, y * bs + bs / 2, bs);
+      const c = grid[y * w + x];
+      ctx.fillText(c.code, x * bs + bs / 2, y * bs + bs / 2);
       }
     }
   }
