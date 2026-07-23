@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>拼豆图纸生成器 · Zoe</title>
+  <link rel="stylesheet" href="bead-pattern/styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <h1>拼豆图纸生成器</h1>
+      <p class="subtitle">上传照片 → 生成 50×50 拼豆图纸 · MARD <span id="paletteCount">291</span> 色 · 本地处理不上传</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel upload-panel">
+      <h2>1. 上传照片</h2>
+      <div id="uploadZone" class="upload-zone" tabindex="0">
+        <input type="file" id="fileInput" accept="image/*" hidden>
+        <p class="upload-icon">📷</p>
+        <p>点击或拖拽图片到这里</p>
+        <p class="hint">支持 JPG / PNG / WebP</p>
+      </div>
+
+      <div id="cropSection" class="crop-section" hidden>
+        <h2>2. 裁剪构图</h2>
+        <p class="hint">拖动粉色框选择区域，粗虚线为板分界线</p>
+        <div class="crop-wrap">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel controls-panel">
+      <h2>设置</h2>
+
+      <label class="field">
+        <span>横向板数</span>
+        <select id="boardsW">
+          <option value="1" selected>1 板 (50 粒)</option>
+          <option value="2">2 板 (100 粒)</option>
+          <option value="3">3 板 (150 粒)</option>
+          <option value="4">4 板 (200 粒)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>纵向板数</span>
+        <select id="boardsH">
+          <option value="1" selected>1 板 (50 粒)</option>
+          <option value="2">2 板 (100 粒)</option>
+          <option value="3">3 板 (150 粒)</option>
+          <option value="4">4 板 (200 粒)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>最多使用色号</span>
+        <input type="range" id="maxColors" min="16" max="291" value="291">
+        <output id="maxColorsVal">291</output>
+      </label>
+
+      <label class="field checkbox">
+        <input type="checkbox" id="showGrid" checked>
+        <span>显示网格线</span>
+      </label>
+
+      <label class="field checkbox">
+        <input type="checkbox" id="showCodes">
+        <span>显示色号（大图适用）</span>
+      </label>
+
+      <label class="field">
+        <span>预览豆粒大小</span>
+        <input type="range" id="beadSize" min="6" max="20" value="12">
+        <output id="beadSizeVal">12</output>
+      </label>
+
+      <button id="generateBtn" class="btn primary">生成图纸</button>
+
+      <div id="stats" class="stats"></div>
+    </aside>
+
+    <section id="resultSection" class="panel result-panel" hidden>
+      <div class="result-header">
+        <h2>图纸预览</h2>
+        <div class="export-actions">
+          <label class="field inline">
+            <span>查看</span>
+            <select id="boardFilter">
+              <option value="all">全部</option>
+            </select>
+          </label>
+          <button id="exportAll" class="btn">导出整图 PNG</button>
+          <button id="exportBoards" class="btn secondary">按板导出 PNG</button>
+        </div>
+      </div>
+      <div class="preview-wrap">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+
+      <h3>色号清单</h3>
+      <div id="legend" class="legend"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>色卡为 MARD 291 色屏幕参考值，实物拼豆请以手边色卡为准。</p>
+  </footer>
+
+  <script type="module" src="bead-pattern/app.js"></script>
+</body>
+</html>
