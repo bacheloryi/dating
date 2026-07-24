@@ -6,6 +6,14 @@ import {
   labDistance,
 } from './palette.js';
 
+function getContrastColor(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#333' : '#fff';
+}
+
 const state = {
   image: null,
   crop: { x: 0, y: 0, w: 1, h: 1 },
@@ -47,6 +55,8 @@ const els = {
 els.paletteCount.textContent = MARD_PALETTE.length;
 
 let cropDrag = null;
+let resizeHandle = null;
+const RESIZE_HANDLE_SIZE = 8;
 
 function loadImage(file) {
   const reader = new FileReader();
@@ -116,6 +126,12 @@ function drawCropCanvas() {
   ctx.lineWidth = 2;
   ctx.strokeRect(sx, sy, sw, sh);
 
+  ctx.fillStyle = '#ff6b9d';
+  ctx.fillRect(sx + sw - RESIZE_HANDLE_SIZE, sy + sh - RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
+  ctx.fillRect(sx + sw - RESIZE_HANDLE_SIZE, sy, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
+  ctx.fillRect(sx, sy + sh - RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
+  ctx.fillRect(sx, sy, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
+
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = 'rgba(255,255,255,0.8)';
   const cols = state.boardsW;
@@ -153,24 +169,142 @@ function setupCropInteraction() {
   canvas.addEventListener('mousedown', (e) => {
     if (!state.image) return;
     const p = canvasCropToImage(e.clientX, e.clientY);
-    cropDrag = { startX: p.x, startY: p.y, orig: { ...state.crop } };
+    const { x, y, w, h } = state.crop;
+    const img = state.image;
+    const scale = img.width / canvas.width;
+
+    const sx = x * scale;
+    const sy = y * scale;
+    const sw = w * scale;
+    const sh = h * scale;
+
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    const rect = canvas.getBoundingClientRect();
+    const cx = clientX - rect.left;
+    const cy = clientY - rect.top;
+
+    const handleSize = RESIZE_HANDLE_SIZE;
+
+    const checkHandle = (tx, ty, tw, th) => {
+      return cx >= tx && cx <= tx + tw && cy >= ty && cy <= ty + th;
+    };
+
+    const handles = [
+      { name: 'se', tx: sx + sw - handleSize, ty: sy + sh - handleSize },
+      { name: 'ne', tx: sx + sw - handleSize, ty: sy },
+      { name: 'sw', tx: sx, ty: sy + sh - handleSize },
+      { name: 'nw', tx: sx, ty: sy },
+    ];
+
+    const hit = handles.find(h => checkHandle(h.tx, h.ty, handleSize, handleSize));
+
+    if (hit) {
+      resizeHandle = { startX: clientX, startY: clientY, orig: { ...state.crop }, handle: hit.name };
+      canvas.style.cursor = hit.name === 'se' || hit.name === 'nw' ? 'nwse-resize' : 'nesw-resize';
+    } else if (cx >= sx && cx <= sx + sw && cy >= sy && cy <= sy + sh) {
+      cropDrag = { startX: p.x, startY: p.y, orig: { ...state.crop } };
+      canvas.style.cursor = 'move';
+    } else {
+      canvas.style.cursor = 'default';
+    }
   });
 
   window.addEventListener('mousemove', (e) => {
-    if (!cropDrag || !state.image) return;
-    const p = canvasCropToImage(e.clientX, e.clientY);
-    const dx = p.x - cropDrag.startX;
-    const dy = p.y - cropDrag.startY;
+    if (!state.image) return;
+
     const img = state.image;
-    let { x, y, w, h } = cropDrag.orig;
-    x = Math.max(0, Math.min(img.width - w, x + dx));
-    y = Math.max(0, Math.min(img.height - h, y + dy));
-    state.crop = { x, y, w, h };
-    drawCropCanvas();
+    const scale = img.width / canvas.width;
+    const { x, y, w, h } = state.crop;
+    const sx = x * scale;
+    const sy = y * scale;
+    const sw = w * scale;
+    const sh = h * scale;
+
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    const rect = canvas.getBoundingClientRect();
+    const cx = clientX - rect.left;
+    const cy = clientY - rect.top;
+    const handleSize = RESIZE_HANDLE_SIZE;
+
+    if (resizeHandle) {
+      const dx = (clientX - resizeHandle.startX) * scale;
+      const dy = (clientY - resizeHandle.startY) * scale;
+      let { x: ox, y: oy, w: ow, h: oh } = resizeHandle.orig;
+
+      const minSize = BOARD_SIZE * 2;
+
+      if (resizeHandle.handle === 'se') {
+        const newW = Math.max(minSize, Math.min(img.width - ox, ow + dx));
+        const newH = Math.max(minSize, Math.min(img.height - oy, oh + dy));
+        const ar = aspectRatio();
+        const finalW = newW;
+        const finalH = finalW / ar;
+        state.crop = { x: ox, y: oy, w: finalW, h: Math.min(finalH, img.height - oy) };
+      } else if (resizeHandle.handle === 'ne') {
+        const newW = Math.max(minSize, Math.min(img.width - ox, ow + dx));
+        const newH = Math.max(minSize, Math.max(0, oh - dy));
+        const ar = aspectRatio();
+        const finalW = newW;
+        const finalH = finalW / ar;
+        const newY = Math.max(0, Math.min(img.height - finalH, oy + dy));
+        state.crop = { x: ox, y: newY, w: finalW, h: finalH };
+      } else if (resizeHandle.handle === 'sw') {
+        const newW = Math.max(minSize, Math.max(0, ow - dx));
+        const newH = Math.max(minSize, Math.min(img.height - oy, oh + dy));
+        const ar = aspectRatio();
+        const finalH = newH;
+        const finalW = finalH * ar;
+        const newX = Math.max(0, Math.min(img.width - finalW, ox + dx));
+        state.crop = { x: newX, y: oy, w: finalW, h: finalH };
+      } else if (resizeHandle.handle === 'nw') {
+        const newW = Math.max(minSize, Math.max(0, ow - dx));
+        const newH = Math.max(minSize, Math.max(0, oh - dy));
+        const ar = aspectRatio();
+        const finalW = Math.max(minSize, Math.max(0, ow - dx));
+        const finalH = finalW / ar;
+        const newX = Math.max(0, Math.min(img.width - finalW, ox + dx));
+        const newY = Math.max(0, Math.min(img.height - finalH, oy + dy));
+        state.crop = { x: newX, y: newY, w: finalW, h: finalH };
+      }
+      drawCropCanvas();
+    } else if (cropDrag) {
+      const p = canvasCropToImage(e.clientX, e.clientY);
+      const dx = p.x - cropDrag.startX;
+      const dy = p.y - cropDrag.startY;
+      let { x, y, w, h } = cropDrag.orig;
+      x = Math.max(0, Math.min(img.width - w, x + dx));
+      y = Math.max(0, Math.min(img.height - h, y + dy));
+      state.crop = { x, y, w, h };
+      drawCropCanvas();
+    } else {
+      const checkHandle = (tx, ty, tw, th) => {
+        return cx >= tx && cx <= tx + tw && cy >= ty && cy <= ty + th;
+      };
+
+      const handles = [
+        { name: 'se', tx: sx + sw - handleSize, ty: sy + sh - handleSize },
+        { name: 'ne', tx: sx + sw - handleSize, ty: sy },
+        { name: 'sw', tx: sx, ty: sy + sh - handleSize },
+        { name: 'nw', tx: sx, ty: sy },
+      ];
+
+      const hit = handles.find(h => checkHandle(h.tx, h.ty, handleSize, handleSize));
+      if (hit) {
+        canvas.style.cursor = hit.name === 'se' || hit.name === 'nw' ? 'nwse-resize' : 'nesw-resize';
+      } else if (cx >= sx && cx <= sx + sw && cy >= sy && cy <= sy + sh) {
+        canvas.style.cursor = 'move';
+      } else {
+        canvas.style.cursor = 'default';
+      }
+    }
   });
 
   window.addEventListener('mouseup', () => {
     cropDrag = null;
+    resizeHandle = null;
+    els.cropCanvas.style.cursor = 'default';
   });
 }
 
@@ -252,29 +386,6 @@ function countColors(mapped) {
     .sort((a, b) => b.count - a.count);
 }
 
-function hexLuminance(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-}
-
-function drawCodeLabel(ctx, code, hex, cx, cy, bs) {
-  const fontSize = Math.max(9, Math.round(bs * 0.48));
-  ctx.font = `700 ${fontSize}px "Segoe UI", "Microsoft YaHei", sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const light = hexLuminance(hex) > 0.55;
-  ctx.lineWidth = Math.max(2.5, bs * 0.12);
-  ctx.strokeStyle = light ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)';
-  ctx.fillStyle = light ? '#111' : '#fff';
-  ctx.lineJoin = 'round';
-  ctx.miterLimit = 2;
-  ctx.strokeText(code, cx, cy);
-  ctx.fillText(code, cx, cy);
-}
-
 function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
   const { grid, w, h } = state.mapped;
   const bs = state.beadSize;
@@ -319,11 +430,15 @@ function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
       }
     }
 
-    if (state.showCodes && bs >= 8) {
+    if (state.showCodes && bs >= 10) {
+      ctx.font = `${Math.max(6, bs * 0.28)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       for (let y = 0; y < BOARD_SIZE; y++) {
         for (let x = 0; x < BOARD_SIZE; x++) {
           const c = grid[(oy + y) * w + (ox + x)];
-          drawCodeLabel(ctx, c.code, c.hex, x * bs + bs / 2, y * bs + bs / 2, bs);
+          ctx.fillStyle = getContrastColor(c.hex);
+          ctx.fillText(c.code, x * bs + bs / 2, y * bs + bs / 2);
         }
       }
     }
@@ -381,11 +496,15 @@ function renderPreview(targetCanvas = els.previewCanvas, boardOnly = null) {
     }
   }
 
-  if (state.showCodes && bs >= 8) {
+  if (state.showCodes && bs >= 10) {
+    ctx.font = `${Math.max(6, bs * 0.28)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const c = grid[y * w + x];
-        drawCodeLabel(ctx, c.code, c.hex, x * bs + bs / 2, y * bs + bs / 2, bs);
+        ctx.fillStyle = getContrastColor(c.hex);
+        ctx.fillText(c.code, x * bs + bs / 2, y * bs + bs / 2);
       }
     }
   }
